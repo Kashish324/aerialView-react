@@ -1,0 +1,896 @@
+// datagrid.js
+
+import React, { useCallback, useState } from 'react';
+import 'devextreme/dist/css/dx.light.css';
+import {
+    DataGrid, Column, Paging, Pager, FilterRow, Editing, Export, ColumnChooser, ColumnFixing, Scrolling,
+} from 'devextreme-react/data-grid';
+import { RadioGroup } from 'devextreme-react/radio-group';
+import { SelectBox } from 'devextreme-react/select-box';
+import { Button } from 'devextreme-react/button';
+import DateBox from 'devextreme-react/date-box';
+import { useSidebar } from './sidebar';
+import { jsPDF } from 'jspdf';
+import { exportDataGrid } from 'devextreme/pdf_exporter';
+const exportFormats = ['pdf'];
+
+const dataTimeLabel = { 'aria-label': 'Date Time' };
+
+const standardFilterOptions = ['Previous Day', '1 Week', '1 Month', '3 Months', '6 Months', '1 Year', 'All'];
+
+// var moment = require('moment-timezone');
+
+function MyDataGrid() {
+
+    // function for customised format of date and time
+    function getFormattedDateTime(timeDifferenceInHours = 0) {
+        let date = new Date();
+        // console.log(date)
+        date.setHours(date.getHours() - timeDifferenceInHours);
+
+        return (
+            date.getFullYear() + '-' +
+            ('00' + (date.getMonth() + 1)).slice(-2) + '-' +
+            ('00' + date.getDate()).slice(-2) + ' ' +
+            ('00' + date.getHours()).slice(-2) + ':' +
+            ('00' + date.getMinutes()).slice(-2) + ':' +
+            ('00' + date.getSeconds()).slice(-2) + '.000'
+        );
+    }
+
+    // const formattedDateTime = getFormattedDateTime();
+    // console.log(formattedDateTime);
+
+
+
+
+    const { rptIdValue } = useSidebar() || {};
+    const [filterType, setFilterType] = useState('Standard'); // Default filter type
+    const [selectedStandardFilter, setSelectedStandardFilter] = useState(null)
+    const [startDate, setStartDate] = useState(getFormattedDateTime(1));
+    const [endDate, setEndDate] = useState(getFormattedDateTime(0));
+    const [tableData, setTableData] = useState(rptIdValue ? rptIdValue.tableData : []);
+    // const [showNavButtons, setShowNavButtons] = useState(true);
+
+    //   console.log(tableData);
+
+    // for pdf formatting try jsPDF
+    const onExporting = useCallback((e) => {
+        const doc = new jsPDF({ putOnlyUsedFonts: true, orientation: "landscape" });
+
+        exportDataGrid({
+            jsPDFDocument: doc,
+            component: e.component,
+            indent: 5,
+        }).then(() => {
+            doc.save('Companies.pdf');
+        });
+    }, []);
+
+    const handleFilterTypeChange = (e) => {
+        setFilterType(e.value);
+    };
+
+    const handleStandardFilterChange = (e) => {
+        setSelectedStandardFilter(e.value)
+    }
+
+    const handleStartDate = (e) => {
+        if (e.value) {
+            setStartDate(e.value);
+        }
+    }
+
+    const handleEndDate = (e) => {
+        if (e.value) {
+            setEndDate(e.value);
+        }
+    }
+
+
+
+
+    const handlePreviewButtonClick = async () => {
+        const dataTableName = rptIdValue.connectionDetails.DataTableName;
+        console.log("Data Table Name:", dataTableName)
+
+        try {
+            let filterOptions;
+            if (filterType === 'Standard') {
+                filterOptions = { standardFilter: selectedStandardFilter };
+            } else if (filterType === 'Date') {
+                filterOptions = { startDate, endDate }
+            }
+
+            const response = await fetch('http://localhost:3000/applyFilters', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ rptIdValue, filterOptions, dataTableName }),
+            })
+
+            const responseData = await response.json();
+            const filteredData = responseData.filteredData;
+
+            setTableData(filteredData);
+            
+            
+        } catch (error) {
+            console.error("Error fetching filtered data:", error.message);
+        }
+        
+        console.log('Preview button clicked!');
+        console.log(tableData)
+    };
+
+
+
+
+    if (!rptIdValue || !rptIdValue.tableData) {
+        return <div>Please select an item from the menu </div>;
+    }
+
+
+    // console.log(rptIdValue.tableData[0].DateAndTime)
+
+    // const ISTTableData = rptIdValue.tableData.map(entry => {
+    //     // Convert UTC date string to Date object
+    //     const utcDate = new Date(entry.DateAndTime);
+
+    //     // Convert UTC to IST
+    //     const ISTDate = new Date(utcDate.getTime() + (utcDate.getTimezoneOffset() * 60000) + (330 * 60000));
+
+    //     // Return the modified entry with IST date in ISO 8601 format
+    //     return {
+    //         ...entry,
+    //         DateAndTime: ISTDate.toISOString()
+    //     };
+    // });
+
+
+
+
+    // console.log(ISTTableData)
+
+    // Now, ISTTableData contains the data with DateAndTime property converted to IST
+
+
+
+    return (
+        <div className='dataGridView'>
+            <div className='filterOptions'>
+                <div className="dx-field-label"><i className="ri-filter-3-line filter-icon"></i> Filter : </div>
+                <div className='radioOption'>
+                    <RadioGroup items={['Standard', 'Date']} defaultValue={'Standard'} onValueChanged={handleFilterTypeChange} layout="horizontal" />
+                </div>
+                <div className="radioGroupContainer">
+
+                    {filterType === 'Standard' && (
+                        <SelectBox className='standardFilter' items={standardFilterOptions} defaultValue={'Select'} onValueChanged={handleStandardFilterChange} />
+                    )}
+                    {filterType === 'Date' && (
+                        <div className='datePicker'>
+                            <div className="dx-field fromDate">
+                                <div className="dx-field-value">
+                                    <DateBox className='dateBox'
+                                        type="datetime"
+                                        placeholder="Start date"
+                                        showClearButton={true}
+                                        inputAttr={dataTimeLabel}
+                                        useMaskBehavior={true}
+                                        onValueChanged={handleStartDate}
+                                        defaultValue={startDate}
+                                        displayFormat="yyyy-MM-dd HH:mm:ss"
+                                    />
+                                </div>
+                            </div>
+
+                            <div className="dx-field toDate">
+                                <div className="dx-field-value">
+                                    <DateBox className='dateBox'
+                                        type="datetime"
+                                        placeholder="End Date "
+                                        showClearButton={true}
+                                        inputAttr={dataTimeLabel}
+                                        useMaskBehavior={true}
+                                        onValueChanged={handleEndDate}
+                                        defaultValue={endDate}
+                                        displayFormat="yyyy-MM-dd HH:mm:ss"
+                                    />
+                                </div>
+                            </div>
+                        </div>
+
+                    )}
+                </div>
+
+                <div>
+                    <Button className='previewBtn'
+                        width={120}
+                        text="Preview"
+                        type="default"
+                        stylingMode="contained"
+                        onClick={handlePreviewButtonClick}
+                    />
+                </div>
+            </div>
+            <DataGrid
+                id="dataGrid"
+                // dataSource={ISTTableData}
+                dataSource={tableData}
+                keyExpr={rptIdValue.connectionDetails.rptId}
+                showBorders={true}
+                columnMinWidth={100}
+                columnAutoWidth={true}
+                allowColumnResizing={true}
+                onExporting={onExporting}
+            >
+                {/* <Scrolling mode="virtual" /> */}
+                <Scrolling mode="virtual" rowRenderingMode="virtual" />
+                <ColumnChooser enabled={true} />
+                <ColumnFixing enabled={true} />
+
+                <Editing confirmDelete={false} allowDeleting={true} />
+                <Paging />
+                <Pager
+                // visible={true}
+                // // showPageSizeSelector={true}
+                // // showInfo={true}
+                // showNavigationButtons={showNavButtons}
+                />
+                <FilterRow visible={true} />
+                <Editing mode="popup" />
+                <Export enabled={true} formats={exportFormats} allowExportSelectedData={true} />
+
+
+
+                {Object.keys(rptIdValue.tableData[0]).map((column, index) => (
+                    <Column
+                        allowReordering={true}
+                        key={index}
+                        dataField={column}
+                        caption={column}
+                        width={column === "DateAndTime" ? 200 : undefined}
+                        dataType={column === "DateAndTime" ? "datetime" : undefined}
+                        // format={column === "DateAndTime" ? { type: 'datetime', timeZone: 'UTC' } : undefined}
+                        cellRender={column === "DateAndTime" ? (data) => new Date(data.value).toLocaleString('en-US', { timeZone: 'UTC' }) : undefined}
+                    />
+                ))}
+
+            </DataGrid>
+        </div>
+    );
+};
+
+export default MyDataGrid;
+
+
+
+
+///////////////////////////////////////////////////////////  22222222222222222222222222222222 //////////////////////////////////////////////////////////////////////
+
+// datagrid.js
+
+import React, { useState } from 'react';
+import 'devextreme/dist/css/dx.light.css';
+import {
+    DataGrid, Column, Paging, Pager, FilterRow, Editing, Export, ColumnChooser, ColumnFixing, Scrolling,
+} from 'devextreme-react/data-grid';
+import { RadioGroup } from 'devextreme-react/radio-group';
+import { SelectBox } from 'devextreme-react/select-box';
+import { Button } from 'devextreme-react/button';
+import DateBox from 'devextreme-react/date-box';
+
+import {
+    Grouping,
+    GroupPanel
+} from 'devextreme-react/data-grid';
+
+
+import { Workbook } from 'exceljs';
+import { saveAs } from 'file-saver-es';
+import { exportDataGrid } from 'devextreme/excel_exporter';
+
+import { useSidebar } from './sidebar';
+import { jsPDF } from 'jspdf';
+// import { exportDataGrid } from 'devextreme/pdf_exporter';
+// const exportFormats = ['pdf'];
+
+const dataTimeLabel = { 'aria-label': 'Date Time' };
+
+const standardFilterOptions = ['Previous Day', '1 Week', '1 Month', '3 Months', '6 Months', '1 Year', 'All'];
+
+// var moment = require('moment-timezone');
+
+const onExporting = (e) => {
+    const workbook = new Workbook();
+    const worksheet = workbook.addWorksheet('Main sheet');
+
+    exportDataGrid({
+        component: e.component,
+        worksheet,
+        autoFilterEnabled: true,
+        customizeCell: ({ gridCell, excelCell }) => {
+            if (gridCell.column.dataField === 'DateAndTime') {
+                const date = new Date(gridCell.value);
+                excelCell.value = date.toLocaleString('en-US', { timeZone: 'UTC' });
+            }
+        }
+    }).then(() => {
+        workbook.xlsx.writeBuffer().then((buffer) => {
+            saveAs(new Blob([buffer], { type: 'application/octet-stream' }), 'DataGrid.xlsx');
+        });
+    });
+};
+
+
+function MyDataGrid() {
+
+    // function for customised format of date and time
+    function getFormattedDateTime(timeDifferenceInHours = 0) {
+        let date = new Date();
+        // console.log(date)
+        date.setHours(date.getHours() - timeDifferenceInHours);
+
+        return (
+            date.getFullYear() + '-' +
+            ('00' + (date.getMonth() + 1)).slice(-2) + '-' +
+            ('00' + date.getDate()).slice(-2) + ' ' +
+            ('00' + date.getHours()).slice(-2) + ':' +
+            ('00' + date.getMinutes()).slice(-2) + ':' +
+            ('00' + date.getSeconds()).slice(-2) + '.000'
+        );
+    }
+
+    // const formattedDateTime = getFormattedDateTime();
+    // console.log(formattedDateTime);
+
+
+
+
+    const { rptIdValue } = useSidebar() || {};
+    const [filterType, setFilterType] = useState('Standard'); // Default filter type
+    const [selectedStandardFilter, setSelectedStandardFilter] = useState(null)
+    const [startDate, setStartDate] = useState(getFormattedDateTime(1));
+    const [endDate, setEndDate] = useState(getFormattedDateTime(0));
+    const [tableData, setTableData] = useState(rptIdValue ? rptIdValue.tableData : []);
+    // const [showNavButtons, setShowNavButtons] = useState(true);
+
+    //   console.log(tableData);
+
+    // for pdf formatting try jsPDF
+    // const onExporting = useCallback((e) => {
+    //     const doc = new jsPDF({ putOnlyUsedFonts: true, orientation: "landscape" });
+
+    //     exportDataGrid({
+    //         jsPDFDocument: doc,
+    //         component: e.component,
+    //         indent: 5,
+    //     }).then(() => {
+    //         doc.save('Companies.pdf');
+    //     });
+    // }, []);
+
+
+    // exporting in excel
+
+
+    const handleFilterTypeChange = (e) => {
+        setFilterType(e.value);
+    };
+
+    const handleStandardFilterChange = (e) => {
+        setSelectedStandardFilter(e.value)
+    }
+
+    const handleStartDate = (e) => {
+        if (e.value) {
+            setStartDate(e.value);
+        }
+    }
+
+    const handleEndDate = (e) => {
+        if (e.value) {
+            setEndDate(e.value);
+        }
+    }
+
+
+
+
+    const handlePreviewButtonClick = async () => {
+        const dataTableName = rptIdValue.connectionDetails.DataTableName;
+        console.log("Data Table Name:", dataTableName)
+
+        try {
+            let filterOptions;
+            if (filterType === 'Standard') {
+                filterOptions = { standardFilter: selectedStandardFilter };
+            } else if (filterType === 'Date') {
+                filterOptions = { startDate, endDate }
+            }
+
+            const response = await fetch('http://localhost:3000/applyFilters', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ rptIdValue, filterOptions, dataTableName }),
+            })
+
+            const responseData = await response.json();
+            const filteredData = responseData.filteredData;
+
+            setTableData(filteredData);
+
+
+        } catch (error) {
+            console.error("Error fetching filtered data:", error.message);
+        }
+
+        console.log('Preview button clicked!');
+        console.log(tableData)
+    };
+
+
+
+
+    if (!rptIdValue || !rptIdValue.tableData) {
+        return <div>Please select an item from the menu </div>;
+    }
+
+
+
+    return (
+        <div className='dataGridView'>
+            <div className='filterOptions'>
+                <div className="dx-field-label"><i className="ri-filter-3-line filter-icon"></i> Filter : </div>
+                <div className='radioOption'>
+                    <RadioGroup items={['Standard', 'Date']} defaultValue={'Standard'} onValueChanged={handleFilterTypeChange} layout="horizontal" />
+                </div>
+                <div className="radioGroupContainer">
+
+                    {filterType === 'Standard' && (
+                        <SelectBox className='standardFilter' items={standardFilterOptions} defaultValue={'Select'} onValueChanged={handleStandardFilterChange} />
+                    )}
+                    {filterType === 'Date' && (
+                        <div className='datePicker'>
+                            <div className="dx-field fromDate">
+                                <div className="dx-field-value">
+                                    <DateBox className='dateBox'
+                                        type="datetime"
+                                        placeholder="Start date"
+                                        showClearButton={true}
+                                        inputAttr={dataTimeLabel}
+                                        useMaskBehavior={true}
+                                        onValueChanged={handleStartDate}
+                                        defaultValue={startDate}
+                                        displayFormat="dd-MM-yyyy HH:mm:ss"
+                                    />
+                                </div>
+                            </div>
+
+                            <div className="dx-field toDate">
+                                <div className="dx-field-value">
+                                    <DateBox className='dateBox'
+                                        type="datetime"
+                                        placeholder="End Date "
+                                        showClearButton={true}
+                                        inputAttr={dataTimeLabel}
+                                        useMaskBehavior={true}
+                                        onValueChanged={handleEndDate}
+                                        defaultValue={endDate}
+                                        displayFormat="dd-MM-yyyy HH:mm:ss"
+                                    />
+                                </div>
+                            </div>
+                        </div>
+
+                    )}
+                </div>
+
+                <div>
+                    <Button className='previewBtn'
+                        width={120}
+                        text="Preview"
+                        type="default"
+                        stylingMode="contained"
+                        onClick={handlePreviewButtonClick}
+                    />
+                </div>
+            </div>
+            <DataGrid
+                id="dataGrid"
+                // dataSource={ISTTableData}
+                dataSource={tableData}
+                keyExpr={rptIdValue.connectionDetails.rptId}
+                showBorders={true}
+                columnMinWidth={100}
+                columnAutoWidth={true}
+                allowColumnResizing={true}
+                onExporting={onExporting}
+                width="100%"
+            >
+
+                <Grouping contextMenuEnabled={true} />
+                <GroupPanel visible={true} />
+                {/* <Scrolling mode="virtual" /> */}
+                <Scrolling mode="virtual" rowRenderingMode="virtual" />
+                <ColumnChooser enabled={true} />
+                <ColumnFixing enabled={true} />
+
+                <Editing confirmDelete={false} allowDeleting={true} />
+                <Paging />
+                <Pager
+                // visible={true}
+                // // showPageSizeSelector={true}
+                // // showInfo={true}
+                // showNavigationButtons={showNavButtons}
+                />
+                <FilterRow visible={true} />
+                <Editing mode="popup" />
+                {/* <Export enabled={true} formats={exportFormats} allowExportSelectedData={true} /> */}
+
+
+
+                {Object.keys(rptIdValue.tableData[0]).map((column, index) => (
+                    <Column
+                        allowReordering={true}
+                        allowGrouping={column === "DateAndTime" ? false : true}
+                        key={index}
+                        dataField={column}
+                        caption={column}
+                        width={column === "DateAndTime" ? 200 : undefined}
+                        cellRender={(data) => {
+                            if (column === "DateAndTime") {
+                                const date = new Date(data.value);
+                                const formattedDate = `${('00' + date.getDate()).slice(-2)}/${('00' + (date.getMonth() + 1)).slice(-2)}/${date.getFullYear()}`;
+                                const formattedTime = date.toLocaleTimeString('en-US', { timeZone: 'UTC', hour12: false });
+                                return `${formattedDate} ${formattedTime}`;
+                            } else {
+                                return data.value;
+                            }
+                        }}
+                    />
+                ))}
+
+                <Export
+                    enabled={true}
+                    allowExportSelectedData={true}
+
+                />
+            </DataGrid>
+        </div>
+    );
+};
+
+export default MyDataGrid;
+
+
+///////////////// 333333333333333333333333333 excel format also working /////////////
+
+// datagrid.js
+
+import React, { useState } from 'react';
+import 'devextreme/dist/css/dx.light.css';
+import {
+    DataGrid, Column, Paging, Pager, FilterRow, Editing, Export, ColumnChooser, ColumnFixing, Scrolling,
+} from 'devextreme-react/data-grid';
+import { RadioGroup } from 'devextreme-react/radio-group';
+import { SelectBox } from 'devextreme-react/select-box';
+import { Button } from 'devextreme-react/button';
+import DateBox from 'devextreme-react/date-box';
+
+import {
+    Grouping,
+    GroupPanel
+} from 'devextreme-react/data-grid';
+import { Workbook } from 'exceljs';
+import { saveAs } from 'file-saver-es';
+import { exportDataGrid } from 'devextreme/excel_exporter';
+
+import { useSidebar } from './sidebar';
+import { jsPDF } from 'jspdf';
+// import { exportDataGrid } from 'devextreme/pdf_exporter';
+// const exportFormats = ['pdf'];
+
+const dataTimeLabel = { 'aria-label': 'Date Time' };
+
+const standardFilterOptions = ['Previous Day', '1 Week', '1 Month', '3 Months', '6 Months', '1 Year', 'All'];
+
+// exporting in excel
+const onExporting = (e) => {
+    const workbook = new Workbook();
+    const worksheet = workbook.addWorksheet('Main sheet');
+    exportDataGrid({
+        component: e.component,
+        worksheet,
+        autoFilterEnabled: true,
+        customizeCell: ({ gridCell, excelCell }) => {
+            if (gridCell.column.dataField === 'DateAndTime') {
+                // Check if gridCell.value is a valid date
+                const date = new Date(gridCell.value);
+                if (!isNaN(date.getTime())) {
+                    const formattedDate = `${('00' + date.getDate()).slice(-2)}/${('00' + (date.getMonth() + 1)).slice(-2)}/${date.getFullYear()}`;
+                    const formattedTime = date.toLocaleTimeString('en-US', { timeZone: 'UTC', hour12: false });
+                    excelCell.value = `${formattedDate} ${formattedTime}`;
+                } else {
+                    excelCell.value = 'Date & Time';
+                }
+            } 
+            // else {
+            //     excelCell.value = gridCell.value;
+            // }
+        }
+    }).then(() => {
+        workbook.xlsx.writeBuffer().then((buffer) => {
+            saveAs(new Blob([buffer], { type: 'application/octet-stream' }), 'DataGrid.xlsx');
+        });
+    });
+};
+
+
+
+function MyDataGrid() {
+
+
+
+    // function for customised format of date and time
+    function getFormattedDateTime(timeDifferenceInHours = 0) {
+        let date = new Date();
+        // console.log(date)
+        date.setHours(date.getHours() - timeDifferenceInHours);
+
+        return (
+            date.getFullYear() + '-' +
+            ('00' + (date.getMonth() + 1)).slice(-2) + '-' +
+            ('00' + date.getDate()).slice(-2) + ' ' +
+            ('00' + date.getHours()).slice(-2) + ':' +
+            ('00' + date.getMinutes()).slice(-2) + ':' +
+            ('00' + date.getSeconds()).slice(-2) + '.000'
+        );
+    }
+
+    // const formattedDateTime = getFormattedDateTime();
+    // console.log(formattedDateTime);
+
+
+
+
+    const { rptIdValue } = useSidebar() || {};
+    const [filterType, setFilterType] = useState('Standard'); // Default filter type
+    const [selectedStandardFilter, setSelectedStandardFilter] = useState(null)
+    const [startDate, setStartDate] = useState(getFormattedDateTime(1));
+    const [endDate, setEndDate] = useState(getFormattedDateTime(0));
+    const [tableData, setTableData] = useState(rptIdValue ? rptIdValue.tableData : []);
+    // const [showNavButtons, setShowNavButtons] = useState(true);
+
+    //   console.log(tableData);
+
+    // for pdf formatting try jsPDF
+    // const onExporting = useCallback((e) => {
+    //     const doc = new jsPDF({ putOnlyUsedFonts: true, orientation: "landscape" });
+
+    //     exportDataGrid({
+    //         jsPDFDocument: doc,
+    //         component: e.component,
+    //         indent: 5,
+    //     }).then(() => {
+    //         doc.save('Companies.pdf');
+    //     });
+    // }, []);
+
+
+    
+
+
+    const handleFilterTypeChange = (e) => {
+        setFilterType(e.value);
+    };
+
+    const handleStandardFilterChange = (e) => {
+        setSelectedStandardFilter(e.value)
+    }
+
+    const handleStartDate = (e) => {
+        if (e.value) {
+            setStartDate(e.value);
+        }
+    }
+
+    const handleEndDate = (e) => {
+        if (e.value) {
+            setEndDate(e.value);
+        }
+    }
+
+
+
+
+    const handlePreviewButtonClick = async () => {
+        const dataTableName = rptIdValue.connectionDetails.DataTableName;
+        console.log("Data Table Name:", dataTableName)
+
+        try {
+            let filterOptions;
+            if (filterType === 'Standard') {
+                filterOptions = { standardFilter: selectedStandardFilter };
+            } else if (filterType === 'Date') {
+                filterOptions = { startDate, endDate }
+            }
+
+            const response = await fetch('http://localhost:3000/applyFilters', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ rptIdValue, filterOptions, dataTableName }),
+            })
+
+            const responseData = await response.json();
+            const filteredData = responseData.filteredData;
+
+            setTableData(filteredData);
+
+
+        } catch (error) {
+            console.error("Error fetching filtered data:", error.message);
+        }
+
+        console.log('Preview button clicked!');
+        console.log(tableData)
+    };
+
+
+
+
+    if (!rptIdValue || !rptIdValue.tableData) {
+        return <div>Please select an item from the menu </div>;
+    }
+
+
+
+
+
+    return (
+        <div className='dataGridView'>
+            <div className='filterOptions'>
+                <div className="dx-field-label"><i className="ri-filter-3-line filter-icon"></i> Filter : </div>
+                <div className='radioOption'>
+                    <RadioGroup items={['Standard', 'Date']} defaultValue={'Standard'} onValueChanged={handleFilterTypeChange} layout="horizontal" />
+                </div>
+                <div className="radioGroupContainer">
+
+                    {filterType === 'Standard' && (
+                        <SelectBox className='standardFilter' items={standardFilterOptions} defaultValue={'Select'} onValueChanged={handleStandardFilterChange} />
+                    )}
+                    {filterType === 'Date' && (
+                        <div className='datePicker'>
+                            <div className="dx-field fromDate">
+                                <div className="dx-field-value">
+                                    <DateBox className='dateBox'
+                                        type="datetime"
+                                        placeholder="Start date"
+                                        showClearButton={true}
+                                        inputAttr={dataTimeLabel}
+                                        useMaskBehavior={true}
+                                        onValueChanged={handleStartDate}
+                                        defaultValue={startDate}
+                                        displayFormat="dd/MM/yyyy HH:mm:ss"
+                                    />
+                                </div>
+                            </div>
+
+                            <div className="dx-field toDate">
+                                <div className="dx-field-value">
+                                    <DateBox className='dateBox'
+                                        type="datetime"
+                                        placeholder="End Date "
+                                        showClearButton={true}
+                                        inputAttr={dataTimeLabel}
+                                        useMaskBehavior={true}
+                                        onValueChanged={handleEndDate}
+                                        defaultValue={endDate}
+                                        displayFormat="dd/MM/yyyy HH:mm:ss"
+                                    />
+                                </div>
+                            </div>
+                        </div>
+
+                    )}
+                </div>
+
+                <div>
+                    <Button className='previewBtn'
+                        width={120}
+                        text="Preview"
+                        type="default"
+                        stylingMode="contained"
+                        onClick={handlePreviewButtonClick}
+                    />
+                </div>
+            </div>
+            <DataGrid
+                id="dataGrid"
+                // dataSource={ISTTableData}
+                dataSource={tableData}
+                keyExpr={rptIdValue.connectionDetails.rptId}
+                showBorders={true}
+                columnMinWidth={100}
+                columnAutoWidth={true}
+                allowColumnResizing={true}
+                onExporting={onExporting}
+                width="100%"
+            >
+
+                <Grouping contextMenuEnabled={true} />
+                <GroupPanel visible={true} />
+                {/* <Scrolling mode="virtual" /> */}
+                <Scrolling mode="virtual" rowRenderingMode="virtual" />
+                <ColumnChooser enabled={true} />
+                <ColumnFixing enabled={true} />
+
+                <Editing confirmDelete={false} allowDeleting={true} />
+                <Paging />
+                <Pager
+                // visible={true}
+                // // showPageSizeSelector={true}
+                // // showInfo={true}
+                // showNavigationButtons={showNavButtons}
+                />
+                <FilterRow visible={true} />
+                <Editing mode="popup" />
+                {/* <Export enabled={true} formats={exportFormats} allowExportSelectedData={true} /> */}
+
+
+
+                {/* {Object.keys(rptIdValue.tableData[0]).map((column, index) => (
+                    // <Column
+                    //     allowReordering={true}
+                    //     allowGrouping={column === "DateAndTime" ? false : true}
+                    //     key={index}
+                    //     dataField={column}
+                    //     caption={column}
+                    //     width={column === "DateAndTime" ? 200 : undefined}
+                    //     // dataType={column === "DateAndTime" ? "datetime" : undefined}
+                    //     // format={column === "DateAndTime" ? 'dd/MM/yyyy': undefined}
+                    //     // format={'dd/MM/yyyy'}
+                    //     // cellRender={column === "DateAndTime" ? (data) => new Date(data.value).toLocaleString('en-US', { timeZone: 'UTC', hour12: false  }) : undefined}
+                    // />
+                ))} */}
+
+
+                {Object.keys(rptIdValue.tableData[0]).map((column, index) => (
+                    <Column
+                        allowReordering={true}
+                        allowGrouping={column === "DateAndTime" ? false : true}
+                        key={index}
+                        dataField={column}
+                        caption={column}
+                        width={column === "DateAndTime" ? 200 : undefined}
+                        // change the date display format
+                        cellRender={(data) => {
+                            if (column === "DateAndTime") {
+                                const date = new Date(data.value);
+                                const formattedDate = `${('00' + date.getDate()).slice(-2)}/${('00' + (date.getMonth() + 1)).slice(-2)}/${date.getFullYear()}`;
+                                const formattedTime = date.toLocaleTimeString('en-US', { timeZone: 'UTC', hour12: false });
+                                return `${formattedDate} ${formattedTime}`;
+                            } else {
+                                return data.value;
+                            }
+                        }}
+                    />
+                ))}
+
+                <Export
+                    enabled={true}
+                    allowExportSelectedData={true}
+                />
+
+            </DataGrid>
+        </div>
+    );
+};
+
+export default MyDataGrid;

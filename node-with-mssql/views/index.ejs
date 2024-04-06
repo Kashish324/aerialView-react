@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+
+<head>
+  <meta charset="UTF-8">
+  <title>Dashboard sidebar </title>
+  <link rel="stylesheet" href="../stylesheets/style.css">
+  <link href="https://cdn.jsdelivr.net/npm/remixicon@3.5.0/fonts/remixicon.css" rel="stylesheet">
+  <link href='https://unpkg.com/boxicons@2.0.7/css/boxicons.min.css' rel='stylesheet'>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+
+<body>
+  <div class="sidebar close">
+    <div class="logo-details">
+      <i class="ri-building-2-line"></i>
+      <span class="logo_name">Hi-Mak Pvt. Ltd.</span>
+    </div>
+    <ul class="nav-links">
+      <% mainMenu.forEach(mainMenu=> { %>
+        <li>
+          <div class="icon-link">
+            <a href="#">
+              <% const iconForMenu=itemIcons.find(icon=> icon.menuCode === mainMenu.MenuCode); %>
+                <% if (!iconForMenu || !iconForMenu.icon) { %>
+                  <!-- default icon -->
+                  <i class="ri-list-indefinite"></i>
+                  <% } else { %>
+                    <i class="<%= iconForMenu.icon %>"></i>
+                    <% } %>
+                      <span class="link_name">
+                        <%= mainMenu.MenuName %>
+                      </span>
+            </a>
+            <% if (hasSubItems(mainMenu.MenuCode, subMenu)) { %>
+              <i class="ri-arrow-down-s-line arrow"></i>
+              <% } %>
+
+                <!-- hasSubItems function is defined to check if there is at least one element in subMenu with a matching MainMenuCode -->
+                <% function hasSubItems(menuCode, subMenu) { return subMenu.some(subItem=> subItem.MainMenuCode ===
+                  menuCode);
+                  }
+                  %>
+          </div>
+          <!-- loop for sub menu -->
+          <ul class="sub-menu">
+            <% subMenu.filter(subItem=> subItem.MainMenuCode === mainMenu.MenuCode).forEach(subItem => { %>
+              <li><a class="link_name" href="#">
+                  <%= mainMenu.MenuName %>
+                </a></li>
+
+              <li>
+                <div class="icon-link">
+                  <a href="">
+
+                    <i class="ri-box-3-line"></i>
+                    <span>
+                      <%= subItem.SubMenuName %>
+                    </span>
+                  </a>
+                  <% if (hasSubItems(subItem.SubMenuCode, childSubMenu)) { %>
+                    <i class="ri-arrow-right-s-line sub-menu-arrow"></i>
+                    <% } %>
+
+                </div>
+
+                <!-- loop for child sub menu -->
+                <ul class="extra-sub-menu">
+                  <% childSubMenu.filter(childItem=> childItem.SubMenuCode === subItem.SubMenuCode).forEach(childItem =>
+                    { %>
+                    <li>
+                      <i class="ri-bard-line"></i>
+                      <a href="">
+                        <span>
+                          <%= childItem.SubChildName %>
+                        </span>
+                      </a>
+                    </li>
+
+                    <% }) %>
+                </ul>
+              </li>
+              <!--  hasSubItems function uses the some method to check if there's at least one element in childSubMenu with a matching SubMenuCode -->
+              <% function hasSubItems(subMenuCode, childSubMenu) { return childSubMenu.some(childItem=>
+                childItem.SubMenuCode === subMenuCode);
+                } %>
+                <% }) %>
+          </ul>
+        </li>
+        <% }) %>
+          <li>
+            <div class="profile-details">
+              <div class="profile-content">
+                <img src="../images/default-profile-image.jpg" alt="profileImg">
+              </div>
+              <div class="name-job">
+                <div class="profile_name">Name Name</div>
+                <div class="job">Web Desginer</div>
+              </div>
+              <i class="ri-logout-circle-line"></i>
+            </div>
+          </li>
+    </ul>
+  </div>
+  <section class="home-section">
+    <div class="home-content">
+      <i class='bx bx-menu'></i>
+
+      <span class="text">Home page</span>
+
+    </div>
+  </section>
+  <script src="../javascripts/script.js"></script>
+</body>
+
+</html>
